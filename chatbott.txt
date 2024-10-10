@@ -1,0 +1,80 @@
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+const VoiceAssistant = () => {
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [isActive, setIsActive] = useState(true);
+
+  useEffect(() => {
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event) => {
+      const last = event.results.length - 1;
+      const command = event.results[last][0].transcript.trim().toLowerCase();
+      setTranscript(command);
+      handleQuery(command);
+    };
+
+    recognition.onend = () => {
+      if (isListening && isActive) {
+        recognition.start();
+      }
+    };
+
+    if (isListening && isActive) {
+      recognition.start();
+    }
+
+    return () => {
+      recognition.stop();
+    };
+  }, [isListening, isActive]);
+
+  useEffect(() => {
+    if (isActive) {
+      speak("Hello! I'm your AI-powered voice assistant. How can I help you?");
+      setIsListening(true);
+    }
+  }, []);
+
+  const speak = (text) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleQuery = async (query) => {
+    if (query.includes('exit') || query.includes('goodbye')) {
+      speak("Goodbye! Have a great day!");
+      setIsActive(false);
+      setIsListening(false);
+    } else {
+      try {
+        const response = await axios.post('https://api.openai.com/v1/engines/davinci-codex/completions', {
+          prompt: `Human: ${query}\nAI:`,
+          max_tokens: 150,
+          n: 1,
+          stop: ["\nHuman:", "\nAI:"],
+          temperature: 0.7,
+        }, {
+          headers: {
+            'Authorization': `Bearer YOUR_OPENAI_API_KEY_HERE`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const aiResponse = response.data.choices[0].text.trim();
+        speak(aiResponse);
+      } catch (error) {
+        console.error('Error calling OpenAI API:', error);
+        speak("I'm sorry, I'm having trouble processing your request right now. Can you please try again?");
+      }
+    }
+  };
+
+  return null; // No UI elements
+};
+
+export default VoiceAssistant;
